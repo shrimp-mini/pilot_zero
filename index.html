@@ -16,6 +16,7 @@
     <nav class="nav" aria-label="メインナビゲーション">
       <a href="#about">About</a>
       <a href="#works">Works</a>
+      <a href="#document">Document</a>
       <a href="#contact">Contact</a>
     </nav>
     <button class="menu-toggle" aria-label="メニューを開く" aria-expanded="false">
@@ -122,10 +123,38 @@
       </div>
     </section>
 
-    <section class="section" id="contact">
+    <section class="section" id="document">
       <div class="container">
         <div class="section-header">
           <span class="section-number">03</span>
+          <h2 class="section-title">Document</h2>
+          <div class="section-divider"></div>
+          <p class="section-lead">Claude Code 開発フローをブラウザ上でプレビューできます。</p>
+        </div>
+
+        <div class="pdf-viewer">
+          <div class="pdf-toolbar">
+            <p class="pdf-title">Claude Code 開発フロー</p>
+            <div class="pdf-actions">
+              <button type="button" class="pdf-btn" id="pdf-prev" aria-label="前のページ">←</button>
+              <span class="pdf-page-info" id="pdf-page-info">1 / 1</span>
+              <button type="button" class="pdf-btn" id="pdf-next" aria-label="次のページ">→</button>
+              <a href="assets/claude-code-dev-flow.pdf" class="pdf-btn pdf-btn-link" target="_blank" rel="noopener noreferrer">新しいタブ</a>
+              <a href="assets/claude-code-dev-flow.pdf" class="pdf-btn pdf-btn-link" download>Download</a>
+            </div>
+          </div>
+          <div class="pdf-canvas-wrap">
+            <canvas id="pdf-canvas" aria-label="PDFプレビュー"></canvas>
+            <p class="pdf-loading" id="pdf-loading">読み込み中…</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-dark" id="contact">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-number">04</span>
           <h2 class="section-title">Contact</h2>
           <div class="section-divider"></div>
           <p class="section-lead">お仕事のご依頼・ご相談は、下記よりお気軽にどうぞ。</p>
@@ -192,7 +221,7 @@
     </div>
   </footer>
 
-  <script>
+  <script type="module">
     const toggle = document.querySelector('.menu-toggle');
     const nav = document.querySelector('.nav');
 
@@ -207,6 +236,72 @@
         toggle.setAttribute('aria-expanded', 'false');
       });
     });
+
+    const pdfUrl = 'assets/claude-code-dev-flow.pdf';
+    const canvas = document.getElementById('pdf-canvas');
+    const ctx = canvas.getContext('2d');
+    const pageInfo = document.getElementById('pdf-page-info');
+    const loading = document.getElementById('pdf-loading');
+    const prevBtn = document.getElementById('pdf-prev');
+    const nextBtn = document.getElementById('pdf-next');
+
+    let pdfDoc = null;
+    let currentPage = 1;
+    let rendering = false;
+
+    async function renderPage(pageNum) {
+      if (!pdfDoc || rendering) return;
+      rendering = true;
+      loading.hidden = false;
+
+      const page = await pdfDoc.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 1 });
+      const wrap = canvas.parentElement;
+      const scale = Math.min(
+        (wrap.clientWidth - 32) / viewport.width,
+        1.5
+      );
+      const scaled = page.getViewport({ scale });
+
+      canvas.width = scaled.width;
+      canvas.height = scaled.height;
+
+      await page.render({ canvasContext: ctx, viewport: scaled }).promise;
+
+      pageInfo.textContent = `${pageNum} / ${pdfDoc.numPages}`;
+      prevBtn.disabled = pageNum <= 1;
+      nextBtn.disabled = pageNum >= pdfDoc.numPages;
+      loading.hidden = true;
+      rendering = false;
+    }
+
+    try {
+      const pdfjsLib = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs');
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+
+      pdfDoc = await pdfjsLib.getDocument(pdfUrl).promise;
+      await renderPage(currentPage);
+
+      prevBtn.addEventListener('click', async () => {
+        if (currentPage > 1) {
+          currentPage -= 1;
+          await renderPage(currentPage);
+        }
+      });
+
+      nextBtn.addEventListener('click', async () => {
+        if (currentPage < pdfDoc.numPages) {
+          currentPage += 1;
+          await renderPage(currentPage);
+        }
+      });
+
+      window.addEventListener('resize', () => renderPage(currentPage));
+    } catch (error) {
+      loading.textContent = 'プレビューを読み込めませんでした。PDFを直接開いてください。';
+      console.error(error);
+    }
   </script>
 </body>
 </html>
